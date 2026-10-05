@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bench Sequencer · lab card</title>
+  <style>
+    :root {
+      --bg: #101614;
+      --panel: #17211c;
+      --line: #2a3b32;
+      --ink: #e7f2dc;
+      --muted: #8ea394;
+      --phosphor: #c6f54a;
+      --amber: #e2a15a;
+      --rose: #e07a6a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        linear-gradient(rgba(198, 245, 74, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(198, 245, 74, 0.03) 1px, transparent 1px),
+        var(--bg);
+      background-size: 22px 22px, 22px 22px, auto;
+      color: var(--ink);
+      font-family: "IBM Plex Mono", ui-monospace, "Courier New", monospace;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 48px; }
+    .kicker { color: var(--phosphor); letter-spacing: 0.18em; font-size: 11px; }
+    h1 { font-weight: 500; font-size: 34px; letter-spacing: -0.04em; margin: 8px 0; }
+    p.lead { color: var(--muted); max-width: 62ch; line-height: 1.55; }
+    .bar { display: flex; gap: 16px; align-items: end; margin: 18px 0; flex-wrap: wrap; }
+    label { font-size: 12px; color: var(--muted); display: grid; gap: 6px; }
+    input {
+      background: transparent; color: var(--ink); border: 1px solid var(--line);
+      padding: 8px 10px; font: inherit; width: 90px;
+    }
+    button {
+      background: var(--phosphor); color: #14200f; border: none; font: inherit;
+      padding: 9px 12px; cursor: pointer; letter-spacing: 0.04em;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 8px 0 4px;
+    }
+    .row, .head {
+      display: grid;
+      grid-template-columns: 92px 1fr 120px 140px;
+      gap: 10px;
+      padding: 9px 14px;
+      align-items: center;
+    }
+    .head { color: var(--muted); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+    .row { border-top: 1px solid var(--line); }
+    .row small { display: block; color: var(--muted); margin-top: 3px; }
+    .skip { color: var(--rose); }
+    .hold { color: var(--amber); }
+    .legend { display: flex; gap: 18px; margin-top: 14px; color: var(--muted); font-size: 12px; }
+    .dot { width: 8px; height: 8px; display: inline-block; margin-right: 6px; background: var(--phosphor); }
+    @media (max-width: 700px) {
+      .row, .head { grid-template-columns: 72px 1fr; }
+      .row span:nth-child(3), .row span:nth-child(4),
+      .head span:nth-child(3), .head span:nth-child(4) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">LAB 2 · NIGHT SESSION · APPARATUS LOCK</div>
+    <h1>Bench Sequencer</h1>
+    <p class="lead">Orders a BCA practical by the tools experiments fight over. The SQL image, the capture laptop, and the projector cannot be double-booked. Paper work can start any time.</p>
+    <div class="bar">
+      <label>Session minutes <input id="session" type="number" min="60" max="240" value="180" /></label>
+      <button id="run" type="button">Resequence</button>
+    </div>
+    <div class="card">
+      <div class="head"><span>Clock</span><span>Experiment</span><span>Bench</span><span>Bottleneck</span></div>
+      <div id="card"></div>
+    </div>
+    <div class="legend"><span><i class="dot"></i>booked</span><span class="hold">amber tool is the wait</span><span class="skip">rose did not fit the session</span></div>
+  </div>
+  <script>
+    const EXPERIMENTS = [
+      { id: "E1", title: "Join plan on the college schema", minutes: 40, tools: ["sql-image"], bench: "A" },
+      { id: "E2", title: "Index vs full scan timing", minutes: 30, tools: ["sql-image"], bench: "A" },
+      { id: "E3", title: "Transaction rollback drill", minutes: 35, tools: ["sql-image"], bench: "B" },
+      { id: "E4", title: "Wireshark handshake capture", minutes: 45, tools: ["capture-laptop"], bench: "C" },
+      { id: "E5", title: "Subnet mask walkthrough", minutes: 25, tools: ["projector"], bench: "Demo" },
+      { id: "E6", title: "DNS trace and cache flush", minutes: 30, tools: ["capture-laptop"], bench: "C" },
+      { id: "E7", title: "ER diagram critique", minutes: 20, tools: ["projector"], bench: "Demo" },
+      { id: "E8", title: "Normalization to 3NF on paper", minutes: 25, tools: [], bench: "Desk" }
+    ];
+    function sequence(list, session) {
+      const pending = list.map(e => ({ ...e, tools: [...e.tools] }));
+      const heat = {};
+      pending.forEach(e => e.tools.forEach(t => heat[t] = (heat[t] || 0) + 1));
+      const toolFree = {};
+      const card = [];
+      let floor = 0;
+      while (pending.length) {
+        const ready = pending.map(exp => {
+          const start = exp.tools.length ? Math.max(...exp.tools.map(t => toolFree[t] || 0)) : 0;
+          return { start, exp };
+        }).filter(item => item.start <= floor || item.exp.tools.length === 0);
+        if (!ready.length) {
+          floor = Math.min(...pending.flatMap(e => e.tools.map(t => toolFree[t] || 0)));
+          continue;
+        }
+        ready.sort((a, b) => a.start - b.start || (b.exp.tools.reduce((n, t) => n + (heat[t] || 1), 0) - a.exp.tools.reduce((n, t) => n + (heat[t] || 1), 0)));
+        const chosen = ready[0];
+        const idx = pending.indexOf(chosen.exp);
+        pending.splice(idx, 1);
+        if (chosen.start + chosen.exp.minutes > session) {
+          card.push({ ...chosen.exp, start: null });
+          continue;
+        }
+        const finish = chosen.start + chosen.exp.minutes;
+        chosen.exp.tools.forEach(t => toolFree[t] = finish);
+        card.push({ ...chosen.exp, start: chosen.start, finish, bottleneck: chosen.exp.tools[0] || "none" });
+        floor = Math.min(...ready.map(r => r.start), finish);
+      }
+      return card;
+    }
+    function clock(mins) {
+      const h = 9 + Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+    function render() {
+      const session = Number(document.getElementById("session").value || 180);
+      const card = sequence(EXPERIMENTS, session);
+      document.getElementById("card").innerHTML = card.map(row => {
+        if (row.start == null) {
+          return `<div class="row skip"><span>—</span><span>${row.id} ${row.title}<small>does not fit a ${session} minute session</small></span><span>${row.bench}</span><span>skipped</span></div>`;
+        }
+        return `<div class="row"><span>${clock(row.start)}</span><span>${row.id} ${row.title}<small>${row.minutes} min · tools ${row.tools.join(", ") || "none"}</small></span><span>${row.bench}</span><span class="hold">${row.bottleneck}</span></div>`;
+      }).join("");
+    }
+    document.getElementById("run").addEventListener("click", render);
+    document.getElementById("session").addEventListener("change", render);
+    render();
+  </script>
+</body>
+</html>
